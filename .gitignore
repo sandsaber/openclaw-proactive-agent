@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtualenvs
+.venv/
+venv/
+env/
+
+# OS junk
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Local secrets / credentials — never commit
+.env
+.env.*
+!.env.example
+.credentials/
+*.pem
+*.p12
+*.pfx
+*.keystore
+*.jks
+id_rsa
+id_ed25519
+id_ecdsa
+id_dsa
+serviceAccountKey.json
+secrets.yml
+secrets.yaml
+
+# Quarantine produced by scripts/injection-scan.sh — ephemeral per install
+assets/memory/quarantine/
+
+# Temporary audit/test artefacts
+/tmp/
+*.bak
