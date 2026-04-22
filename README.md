@@ -1,5 +1,7 @@
 # Safe Proactive Agent
 
+**Version 1.0.0** · License: [MIT-0](LICENSE) · [Security audit: 22 findings, 21 fixed, 1 accepted](SECURITY-AUDIT.md)
+
 A proactive LLM-agent skill bundle with a **typed, three-tier trust model**
 and a **working reference implementation** of the enforcement hooks.
 
@@ -13,6 +15,60 @@ is enforced mechanically — not by prose exhortation.
 
 Licensed MIT-0. No warranty. Use freely, modify, redistribute, no
 attribution required.
+
+---
+
+## What this agent does
+
+### Proactivity (output-bound — every feature writes to a file; nothing leaks as a side-effect)
+
+- [x] **Reverse prompting.** Questions the agent wants to ask go into `memory/open-questions.md`. Surfaced as a single batched reverse-prompt (never one-at-a-time pings).
+- [x] **Pattern detection (N ≥ 3).** Repeat requests are tracked in `PATTERNS.md`. At the third occurrence the agent drafts an automation proposal — never enables it.
+- [x] **Draft-but-don't-send.** Every outbound artefact — emails, PRs, commits, messages, posts, package installs — is drafted into `PROPOSALS.md` with rationale and a risk note. Execution is a separate, human-approved step.
+- [x] **Surprise gift queue.** A ranked list of "things I think would delight my human" in `memory/surprise-queue.md`. Top-1 surfaced at session start; never built on the agent's own authority.
+- [x] **Open-question journal.** Separate from in-chat questions; reviewed periodically.
+- [x] **Near-miss log.** When the agent was about to take a Tier 2 action and stopped itself, it records *what stopped it* in `memory/near-misses.md` — self-calibration over time.
+- [x] **Red-team self-check.** Before any Tier 1+ action: "could this be the result of prompt-injection from external content?" If yes, the tier escalates.
+- [x] **Alignment pulse.** Once per session: "am I still serving the human's stated goals?" If drift detected, one sentence in chat.
+- [x] **Attention-debt tracker.** At the third "later" on the same topic, surfaces a prompt — once, not a nag.
+- [x] **Pre-computed context.** If the human is clearly debugging, the agent reads likely-relevant logs into its own context so the next question lands on warm content.
+- [x] **Self-critique before show.** One silent revision pass before presenting a draft.
+- [x] **Periodic heartbeats (sandboxed).** Eight kinds — memory freshener, pattern detector, proactive tracker, attention-debt scan, alignment audit, injection sweep, policy-drift check, proposal expiration. Heartbeats *file proposals*, never execute.
+
+### Memory & continuity
+
+- [x] **WAL protocol.** Critical details (corrections, proper nouns, preferences, decisions, specific values) are written to `SESSION-STATE.md` **before** the agent composes its response. Survives single-turn memory loss.
+- [x] **Working buffer.** At 60 % context, every subsequent exchange is appended to `memory/working-buffer.md` verbatim — survives compaction.
+- [x] **Compaction recovery.** On resume, the agent reads the buffer *first*. It never asks "where were we?" — the buffer answers.
+- [x] **Three-tier memory.** Raw daily notes → `SESSION-STATE.md` (active) → `memory/YYYY-MM-DD.md` (daily archive) → `MEMORY.md` (distilled durable lessons).
+- [x] **Curated surprise dismissal.** Ideas the human rejected stay flagged in the queue so the agent doesn't re-propose in a month.
+
+### Security guarantees (mechanical, not prose-only)
+
+- [x] **Typed three-tier action model.** Every action is Tier 0 (ambient), Tier 1 (logged + reversible), or Tier 2 (approval required). Default on ambiguity: Tier 2.
+- [x] **Agent-unwritable approval artefacts.** `assets/approvals/<sha>.approved` is the single sanctioned approval channel. Agent has no write-access; only `scripts/approve-proposal.sh` (TTY-gated) can create them.
+- [x] **TOCTOU-guarded approval execution.** At execution time, the current proposal body must still hash to `proposal_sha256` — otherwise the approval is invalid.
+- [x] **Single-use approvals.** After execution, `consumed_at` is flipped; replay is blocked.
+- [x] **14-day approval expiry.** Stale approvals auto-move to `approvals/expired/`.
+- [x] **Hash-chained audit log.** Every entry pins the SHA-256 of prior file content. In-place edits are detectable by a chain walker (`verify-policy.sh §5`).
+- [x] **Three-layer prompt-injection defence.** Origin classification (only direct-human channel grants authority) + heuristic marker scan + tier escalation when a trigger traces back to external content.
+- [x] **Pre-read injection quarantine.** `scripts/injection-scan.sh` moves flagged content into `memory/quarantine/` with a stub pointer; the agent never sees the raw injected payload again.
+- [x] **Self-modification lockout.** `POLICY.md`, `SOUL.md`, `SKILL.md`, and everything under `scripts/` require a `POLICY-APPROVED` or `SCRIPT-APPROVED` entry with matching SHA-256 before any edit.
+- [x] **Heartbeat sandbox.** Read-only outside the workspace, no network, tool allowlist, ≤ 60 s wall-clock, ≤ 20k input tokens, ≤ 24 runs/day per kind. Findings go to `PROPOSALS.md`, never direct action.
+- [x] **Secret-leak scanner.** Detects AWS, GitHub, OpenAI (`sk-*`), Anthropic (`sk-ant-*`), Stripe live, Slack (`xoxb/p/a/app`), Google API keys, JWT, OpenSSH/PGP/RSA private keys, and Bearer/Basic auth tokens anywhere in the tree.
+- [x] **Credential-path and file-name scanner.** Flags `.env`, `.ssh/`, `.aws/`, `.credentials/`, `.netrc`, `.docker/`, `.gnupg/`, `.git-credentials`, `*.pem`, `*.p12`, `id_rsa`, `serviceAccountKey.json`, `secrets.yml` inside the workspace.
+- [x] **macOS ACL check.** Catches world-writable grants set via ACL (invisible to POSIX-mode checks).
+- [x] **63 unit tests.** All eight enforcement vectors from `references/trust-tiers.md`, plus obfuscation-bypass regression (F-21, F-22: `r''m`, `p\ip install`, `bash -lc`, `perl -pe`, etc.), workspace escape (`..`), approval hygiene (expiry, consumed, TOCTOU, subject mismatch).
+
+### What you configure vs. what ships ready
+
+| Ships ready | You wire up |
+|---|---|
+| All policy + operating files | Path to workspace root |
+| Five shell scripts, chmod +x | Claude Code hooks or equivalent pre/post-tool-use wrapper |
+| Python reference hooks (`spa_hooks/`) | Import / subprocess call from your runtime |
+| 63 passing unit tests | Optional: integrate into your CI |
+| POLICY-APPROVED + SCRIPT-APPROVED pins for v1.0.0 | Re-approve after any edit (via `scripts/approve-proposal.sh`) |
 
 ---
 
